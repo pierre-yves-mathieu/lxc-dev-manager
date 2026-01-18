@@ -15,6 +15,10 @@ type MockExecutor struct {
 
 	// DefaultResponse is returned when no matching response is found
 	DefaultResponse MockResponse
+
+	// Callbacks maps command patterns to functions called when the command is executed
+	// The callback receives the full args slice
+	Callbacks map[string]func(args []string)
 }
 
 // MockCall represents a single call to the executor
@@ -33,6 +37,7 @@ func NewMockExecutor() *MockExecutor {
 	return &MockExecutor{
 		Calls:     []MockCall{},
 		Responses: make(map[string]MockResponse),
+		Callbacks: make(map[string]func(args []string)),
 	}
 }
 
@@ -50,6 +55,18 @@ func (m *MockExecutor) RunCombined(args ...string) ([]byte, error) {
 
 func (m *MockExecutor) getResponse(args []string) ([]byte, error) {
 	key := strings.Join(args, " ")
+
+	// Execute callbacks (try exact match first, then prefix match)
+	if cb, ok := m.Callbacks[key]; ok {
+		cb(args)
+	} else {
+		for pattern, cb := range m.Callbacks {
+			if strings.HasPrefix(key, pattern) {
+				cb(args)
+				break
+			}
+		}
+	}
 
 	// Try exact match first
 	if resp, ok := m.Responses[key]; ok {
@@ -82,10 +99,17 @@ func (m *MockExecutor) SetOutput(pattern string, output string) {
 	m.Responses[pattern] = MockResponse{Output: []byte(output)}
 }
 
+// SetCallback sets a callback function for a command pattern
+// The callback is called when the command is executed, before returning the response
+func (m *MockExecutor) SetCallback(pattern string, cb func(args []string)) {
+	m.Callbacks[pattern] = cb
+}
+
 // Reset clears all calls and responses
 func (m *MockExecutor) Reset() {
 	m.Calls = []MockCall{}
 	m.Responses = make(map[string]MockResponse)
+	m.Callbacks = make(map[string]func(args []string))
 	m.DefaultResponse = MockResponse{}
 }
 

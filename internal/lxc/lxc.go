@@ -229,6 +229,36 @@ func FilePush(container, localPath, remotePath string, recursive bool) error {
 	return nil
 }
 
+// FilePull copies a file or directory from container to host
+func FilePull(container, remotePath, localPath string, recursive bool) error {
+	args := []string{"file", "pull"}
+	if recursive {
+		args = append(args, "-r")
+	}
+	args = append(args, container+"/"+remotePath, localPath)
+	output, err := DefaultExecutor.RunCombined(args...)
+	if err != nil {
+		errMsg := strings.TrimSpace(string(output))
+		if strings.Contains(errMsg, "Not Found") || strings.Contains(errMsg, "not found") {
+			return fmt.Errorf("source path '%s' not found in container", remotePath)
+		}
+		return fmt.Errorf("failed to copy from container: %s", errMsg)
+	}
+	return nil
+}
+
+// FileExists checks if a file exists in a container
+func FileExists(container, path string) bool {
+	err := Exec(container, "test", "-e", path)
+	return err == nil
+}
+
+// IsDir checks if a path is a directory in a container
+func IsDir(container, path string) bool {
+	err := Exec(container, "test", "-d", path)
+	return err == nil
+}
+
 // ListSnapshots returns all snapshot names for a container
 func ListSnapshots(container string) ([]string, error) {
 	output, err := DefaultExecutor.Run("query", "/1.0/instances/"+container+"/snapshots")
